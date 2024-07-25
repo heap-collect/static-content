@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How To Fix BSOD Due To CrowdStrike Issue</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  <link rel="stylesheet" href="https://unpkg.com/@material-ui/core@latest/dist/material-ui.min.css">
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: #f5f5f5;
+      margin: 0;
+      padding: 20px;
+    }
+    .callout {
+      background-color: #ffeb3b;
+      padding: 20px;
+      margin-bottom: 20px;
+      text-align: center;
+      font-weight: bold;
+    }
+    .emphasized {
+      background-color: #ffeb3b;
+      padding: 10px;
+      border-left: 5px solid #f44336;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="callout">
+    <a href="#impact">Jump to the section on the widespread impact</a>
+  </div>
+
+  <h1>How To Fix BSOD Due To CrowdStrike Issue</h1>
+
+  <h2>What Caused the Blue Screen Of Death Error</h2>
+  <p>The Blue Screen of Death errors were triggered by a recent update to CrowdStrike’s Falcon sensor, a component of their endpoint security software. Many users on Reddit shared that the issue appears to be related to the “DRIVER_OVERRAN_STACK_BUFFER” error, which prevents your system from starting up normally and operating.</p>
+
+  <h2>How To Fix BSOD CrowdStrike Error</h2>
+  <ol>
+    <li>Boot Windows into Safe Mode or the Windows Recovery Environment</li>
+    <li>Turn off the device by holding the power button for 10 seconds.</li>
+    <li>Then, turn on the device and as soon as Windows starts (e.g., the manufacturer’s logo appears), immediately again turn off the device.</li>
+    <li>Repeat this until a full restart takes place and (enters Windows Recovery Environment)</li>
+    <li>In the Recovery Environment, navigate to Troubleshoot > Advanced options > Startup Settings > Restart.</li>
+    <li>From the list of options, select Option 5 or press F5 for “Safe Mode with Networking.”</li>
+    <li>Once booted into safe mode – navigate to the C:\Windows\System32\drivers\CrowdStrike directory</li>
+    <li>Locate the file matching “C-00000291*.sys”, and delete it.</li>
+    <li>Boot the host normally.</li>
+  </ol>
+  <p>Note: If your device’s BitLocker is preventing you from booting into safe mode, you can get your BitLocker recovery key from your Microsoft or Azure AD-linked account.</p>
+
+  <h2>CrowdStrike’s Response to BSOD Error</h2>
+  <p>Engineering teams at CrowdStrike are actively working to resolve the issue, with the company advising users not to open individual support tickets. A Technical Alert detailing the problem and potential workarounds is expected to be published shortly. Users should monitor CrowdStrike’s official communication channels for updates, avoid attempting to fix the problem independently, and exercise patience as a resolution is developed.</p>
+
+  <h2 id="impact" class="emphasized">The widespread impact has led to significant disruptions, with some organizations
+    reporting thousands of affected devices, including critical production servers and SQL nodes. The scope of the issue is extensive, affecting numerous organizations globally, including:</h2>
+  <ul>
+    <li>Banks and financial institutions</li>
+    <li>Supermarkets and retail chains</li>
+    <li>Media companies and broadcasters</li>
+    <li>Educational institutions</li>
+    <li>Airlines and airports</li>
+  </ul>
+
+  <h2>Which Systems Have Been Affected With BSOD Error?</h2>
+  <p>The BSOD error has impacted Windows 10 and Windows 11 systems running various CrowdStrike Falcon sensor versions. While CrowdStrike has not released a comprehensive list of all affected versions, it has acknowledged that the problem occurs “across various sensor versions.” A few versions of the BSOD error affected CrowdStrike Falcon sensor include:</p>
+  <ul>
+    <li>Version 6.58</li>
+    <li>Version 7.15.18513.0, as reported by users on the forums</li>
+    <li>The “n-1” version (one version behind the latest release)</li>
+  </ul>
+</body>
+</html>
