@@ -62,6 +62,20 @@
             border-radius: 20px;
         }
 
+        #swipeIndicator {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.4);
+            padding: 8px 16px;
+            border-radius: 15px;
+            display: none;
+        }
+
         #instructions {
             position: absolute;
             top: 50%;
@@ -156,6 +170,7 @@
     <div id="ui">
         <div id="score">Score: 0</div>
         <div id="timer">Time: 0:00</div>
+        <div id="swipeIndicator">Swipe Power: 0%</div>
     </div>
 
     <div id="instructions">
@@ -334,6 +349,7 @@
 
             uniform vec3 uLightPos;
             uniform float uTime;
+            uniform float uAlpha;
 
             void main() {
                 vec3 normal = normalize(vNormal);
@@ -346,7 +362,7 @@
                 float shimmer = sin(uTime * 3.0 + vPosition.x * 2.0 + vPosition.z * 2.0) * 0.1 + 0.9;
 
                 vec3 color = vColor * (ambient + diffuse * 0.7) * shimmer;
-                fragColor = vec4(color, 1.0);
+                fragColor = vec4(color, uAlpha);
             }
         `;
 
@@ -385,6 +401,7 @@
         const uProjectionMatrix = gl.getUniformLocation(program, 'uProjectionMatrix');
         const uLightPos = gl.getUniformLocation(program, 'uLightPos');
         const uTime = gl.getUniformLocation(program, 'uTime');
+        const uAlpha = gl.getUniformLocation(program, 'uAlpha');
 
         // Create sphere geometry
         function createSphere(radius, segments) {
@@ -480,6 +497,123 @@
             };
         }
 
+        // Create cone geometry (for arrows)
+        function createCone(radius, height, segments, color) {
+            const positions = [];
+            const normals = [];
+            const colors = [];
+            const indices = [];
+
+            // Tip of cone
+            positions.push(0, height, 0);
+            normals.push(0, 1, 0);
+            colors.push(...color);
+
+            // Base circle
+            for (let i = 0; i <= segments; i++) {
+                const angle = (i / segments) * Math.PI * 2;
+                const x = Math.cos(angle) * radius;
+                const z = Math.sin(angle) * radius;
+
+                positions.push(x, 0, z);
+                normals.push(x, 0.5, z);
+                colors.push(...color);
+
+                if (i < segments) {
+                    indices.push(0, i + 1, i + 2);
+                }
+            }
+
+            // Base cap
+            const baseCenter = positions.length / 3;
+            positions.push(0, 0, 0);
+            normals.push(0, -1, 0);
+            colors.push(...color);
+
+            for (let i = 1; i <= segments; i++) {
+                indices.push(baseCenter, i + 1, i);
+            }
+
+            return {
+                positions: new Float32Array(positions),
+                normals: new Float32Array(normals),
+                colors: new Float32Array(colors),
+                indices: new Uint16Array(indices)
+            };
+        }
+
+        // Create cylinder (for walls/edges)
+        function createCylinder(radius, height, segments, color) {
+            const positions = [];
+            const normals = [];
+            const colors = [];
+            const indices = [];
+
+            for (let i = 0; i <= segments; i++) {
+                const angle = (i / segments) * Math.PI * 2;
+                const x = Math.cos(angle) * radius;
+                const z = Math.sin(angle) * radius;
+
+                // Bottom vertex
+                positions.push(x, 0, z);
+                normals.push(x, 0, z);
+                colors.push(...color);
+
+                // Top vertex
+                positions.push(x, height, z);
+                normals.push(x, 0, z);
+                colors.push(...color);
+
+                if (i < segments) {
+                    const base = i * 2;
+                    indices.push(base, base + 2, base + 1);
+                    indices.push(base + 1, base + 2, base + 3);
+                }
+            }
+
+            return {
+                positions: new Float32Array(positions),
+                normals: new Float32Array(normals),
+                colors: new Float32Array(colors),
+                indices: new Uint16Array(indices)
+            };
+        }
+
+        // Create circle (for shadow)
+        function createCircle(radius, segments, color) {
+            const positions = [];
+            const normals = [];
+            const colors = [];
+            const indices = [];
+
+            // Center
+            positions.push(0, 0, 0);
+            normals.push(0, 1, 0);
+            colors.push(...color);
+
+            // Circle vertices
+            for (let i = 0; i <= segments; i++) {
+                const angle = (i / segments) * Math.PI * 2;
+                const x = Math.cos(angle) * radius;
+                const z = Math.sin(angle) * radius;
+
+                positions.push(x, 0, z);
+                normals.push(0, 1, 0);
+                colors.push(...color);
+
+                if (i < segments) {
+                    indices.push(0, i + 1, i + 2);
+                }
+            }
+
+            return {
+                positions: new Float32Array(positions),
+                normals: new Float32Array(normals),
+                colors: new Float32Array(colors),
+                indices: new Uint16Array(indices)
+            };
+        }
+
         // Create marble
         const marbleGeometry = createSphere(0.3, 20);
         const marbleVAO = gl.createVertexArray();
@@ -507,10 +641,93 @@
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, marbleIndexBuffer);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, marbleGeometry.indices, gl.STATIC_DRAW);
 
+        // Create shadow
+        const shadowGeometry = createCircle(0.4, 20, [0, 0, 0]);
+        const shadowVAO = gl.createVertexArray();
+        gl.bindVertexArray(shadowVAO);
+
+        const shadowPosBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, shadowPosBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, shadowGeometry.positions, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(aPosition);
+        gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+
+        const shadowNormBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, shadowNormBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, shadowGeometry.normals, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(aNormal);
+        gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+
+        const shadowColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, shadowColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, shadowGeometry.colors, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(aColor);
+        gl.vertexAttribPointer(aColor, 3, gl.FLOAT, false, 0, 0);
+
+        const shadowIndexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, shadowIndexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, shadowGeometry.indices, gl.STATIC_DRAW);
+
+        // Create direction arrow
+        const arrowGeometry = createCone(0.15, 0.6, 12, [1, 1, 0]);
+        const arrowVAO = gl.createVertexArray();
+        gl.bindVertexArray(arrowVAO);
+
+        const arrowPosBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, arrowPosBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, arrowGeometry.positions, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(aPosition);
+        gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+
+        const arrowNormBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, arrowNormBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, arrowGeometry.normals, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(aNormal);
+        gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+
+        const arrowColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, arrowColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, arrowGeometry.colors, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(aColor);
+        gl.vertexAttribPointer(aColor, 3, gl.FLOAT, false, 0, 0);
+
+        const arrowIndexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, arrowIndexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, arrowGeometry.indices, gl.STATIC_DRAW);
+
+        // Create wall/edge cylinder
+        const wallGeometry = createCylinder(0.05, 0.5, 8, [1, 1, 1]);
+        const wallVAO = gl.createVertexArray();
+        gl.bindVertexArray(wallVAO);
+
+        const wallPosBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, wallPosBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, wallGeometry.positions, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(aPosition);
+        gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+
+        const wallNormBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, wallNormBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, wallGeometry.normals, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(aNormal);
+        gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+
+        const wallColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, wallColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, wallGeometry.colors, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(aColor);
+        gl.vertexAttribPointer(aColor, 3, gl.FLOAT, false, 0, 0);
+
+        const wallIndexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, wallIndexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, wallGeometry.indices, gl.STATIC_DRAW);
+
         // Create level platforms
         const platforms = [];
         const gems = [];
         const obstacles = [];
+        const directionArrows = [];
+        const platformWalls = [];
 
         // Main platform path
         const platformColors = [
@@ -528,8 +745,33 @@
             const color = platformColors[i % platformColors.length];
             platforms.push({
                 geometry: createBox(3, 0.3, 2, color),
-                position: [x, -1, z]
+                position: [x, -1, z],
+                index: i
             });
+
+            // Add direction arrows (point to next platform)
+            if (i < 14) {
+                const nextX = Math.sin((i + 1) * 0.5) * 3;
+                const nextZ = -(i + 1) * 2;
+                const dx = nextX - x;
+                const dz = nextZ - z;
+                const angle = Math.atan2(dx, dz);
+
+                directionArrows.push({
+                    position: [x, -0.5, z],
+                    rotation: angle
+                });
+            }
+
+            // Add platform edge walls
+            const edgeColor = [0.9, 0.9, 0.9];
+            // Front and back walls
+            platformWalls.push(
+                { position: [x - 1.4, -0.85, z], rotation: 0 },
+                { position: [x + 1.4, -0.85, z], rotation: 0 },
+                { position: [x, -0.85, z - 0.9], rotation: Math.PI / 2 },
+                { position: [x, -0.85, z + 0.9], rotation: Math.PI / 2 }
+            );
 
             // Add gems
             if (i > 0 && i % 3 === 0) {
@@ -655,12 +897,16 @@
         // Touch controls
         let touchStart = null;
         let touchEnd = null;
+        let swipePower = 0;
+
+        const swipeIndicator = document.getElementById('swipeIndicator');
 
         canvas.addEventListener('touchstart', (e) => {
             if (gameState !== 'playing') return;
             e.preventDefault();
             const touch = e.touches[0];
             touchStart = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+            swipeIndicator.style.display = 'block';
         }, { passive: false });
 
         canvas.addEventListener('touchmove', (e) => {
@@ -669,12 +915,21 @@
             if (touchStart) {
                 const touch = e.touches[0];
                 touchEnd = { x: touch.clientX, y: touch.clientY };
+
+                // Show swipe power
+                const dx = touchEnd.x - touchStart.x;
+                const dy = touchEnd.y - touchStart.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                swipePower = Math.min(100, (distance / 200) * 100);
+                swipeIndicator.textContent = `Swipe Power: ${Math.floor(swipePower)}%`;
             }
         }, { passive: false });
 
         canvas.addEventListener('touchend', (e) => {
             if (gameState !== 'playing') return;
             e.preventDefault();
+            swipeIndicator.style.display = 'none';
+
             if (touchStart && touchEnd) {
                 const dx = touchEnd.x - touchStart.x;
                 const dy = touchEnd.y - touchStart.y;
@@ -700,6 +955,7 @@
             }
             touchStart = null;
             touchEnd = null;
+            swipePower = 0;
         }, { passive: false });
 
         // Update physics
@@ -817,22 +1073,132 @@
             gl.uniformMatrix4fv(uViewMatrix, false, viewMatrix);
             gl.uniform3fv(uLightPos, [10, 10, 10]);
             gl.uniform1f(uTime, time);
+            gl.uniform1f(uAlpha, 1.0);
+
+            // Find current platform for marble
+            let currentPlatformIndex = 0;
+            platforms.forEach((platform, idx) => {
+                const px = platform.position[0];
+                const pz = platform.position[2];
+                const dist = Math.sqrt(
+                    (marble.position[0] - px) * (marble.position[0] - px) +
+                    (marble.position[2] - pz) * (marble.position[2] - pz)
+                );
+                if (dist < 3) {
+                    currentPlatformIndex = idx;
+                }
+            });
+
+            // Render marble shadow (with transparency)
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+            let shadowY = -0.85; // Default shadow height
+            // Find platform height under marble
+            platforms.forEach(platform => {
+                const px = platform.position[0];
+                const pz = platform.position[2];
+                if (marble.position[0] > px - 1.5 && marble.position[0] < px + 1.5 &&
+                    marble.position[2] > pz - 1 && marble.position[2] < pz + 1) {
+                    shadowY = platform.position[1] + 0.16;
+                }
+            });
+
+            let modelMatrix = mat4.create();
+            modelMatrix = mat4.translate(modelMatrix, [marble.position[0], shadowY, marble.position[2]]);
+            const shadowScale = Math.max(0.3, 1.0 - (marble.position[1] - shadowY) * 0.1);
+            modelMatrix = mat4.scale(modelMatrix, [shadowScale, 1, shadowScale]);
+
+            const shadowAlpha = Math.max(0.1, 0.5 - (marble.position[1] - shadowY) * 0.05);
+            gl.uniform1f(uAlpha, shadowAlpha);
+            gl.uniformMatrix4fv(uModelMatrix, false, modelMatrix);
+            gl.bindVertexArray(shadowVAO);
+            gl.drawElements(gl.TRIANGLES, shadowGeometry.indices.length, gl.UNSIGNED_SHORT, 0);
+
+            gl.disable(gl.BLEND);
+            gl.uniform1f(uAlpha, 1.0);
 
             // Render marble
-            let modelMatrix = mat4.create();
+            modelMatrix = mat4.create();
             modelMatrix = mat4.translate(modelMatrix, marble.position);
             gl.uniformMatrix4fv(uModelMatrix, false, modelMatrix);
             gl.bindVertexArray(marbleVAO);
             gl.drawElements(gl.TRIANGLES, marbleGeometry.indices.length, gl.UNSIGNED_SHORT, 0);
 
             // Render platforms
-            platforms.forEach(platform => {
+            platforms.forEach((platform, idx) => {
                 modelMatrix = mat4.create();
                 modelMatrix = mat4.translate(modelMatrix, platform.position);
+
+                // Highlight next platform
+                if (idx === currentPlatformIndex + 1 && idx < platforms.length - 1) {
+                    const pulseScale = 1.0 + Math.sin(time * 4) * 0.05;
+                    modelMatrix = mat4.scale(modelMatrix, [pulseScale, 1, pulseScale]);
+                }
+
                 gl.uniformMatrix4fv(uModelMatrix, false, modelMatrix);
                 gl.bindVertexArray(platform.vao);
                 gl.drawElements(gl.TRIANGLES, platform.geometry.indices.length, gl.UNSIGNED_SHORT, 0);
             });
+
+            // Render platform edge walls
+            platformWalls.forEach(wall => {
+                modelMatrix = mat4.create();
+                modelMatrix = mat4.translate(modelMatrix, wall.position);
+
+                // Rotate wall
+                const rotY = new Float32Array([
+                    Math.cos(wall.rotation), 0, Math.sin(wall.rotation), 0,
+                    0, 1, 0, 0,
+                    -Math.sin(wall.rotation), 0, Math.cos(wall.rotation), 0,
+                    0, 0, 0, 1
+                ]);
+                modelMatrix = mat4.multiply(modelMatrix, rotY);
+
+                gl.uniformMatrix4fv(uModelMatrix, false, modelMatrix);
+                gl.bindVertexArray(wallVAO);
+                gl.drawElements(gl.TRIANGLES, wallGeometry.indices.length, gl.UNSIGNED_SHORT, 0);
+            });
+
+            // Render direction arrows (with animation)
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+            directionArrows.forEach((arrow, idx) => {
+                // Only show arrows near the marble
+                const dx = arrow.position[0] - marble.position[0];
+                const dz = arrow.position[2] - marble.position[2];
+                const dist = Math.sqrt(dx * dx + dz * dz);
+
+                if (dist < 10) {
+                    modelMatrix = mat4.create();
+                    modelMatrix = mat4.translate(modelMatrix, arrow.position);
+
+                    // Rotate arrow to point to next platform
+                    const rotY = new Float32Array([
+                        Math.cos(arrow.rotation), 0, Math.sin(arrow.rotation), 0,
+                        0, 1, 0, 0,
+                        -Math.sin(arrow.rotation), 0, Math.cos(arrow.rotation), 0,
+                        0, 0, 0, 1
+                    ]);
+                    modelMatrix = mat4.multiply(modelMatrix, rotY);
+
+                    // Pulse animation
+                    const pulse = Math.sin(time * 3 + idx * 0.5) * 0.15 + 1.0;
+                    modelMatrix = mat4.scale(modelMatrix, [pulse, pulse, pulse]);
+
+                    // Fade based on distance
+                    const alpha = Math.max(0.3, 1.0 - dist / 10);
+                    gl.uniform1f(uAlpha, alpha);
+
+                    gl.uniformMatrix4fv(uModelMatrix, false, modelMatrix);
+                    gl.bindVertexArray(arrowVAO);
+                    gl.drawElements(gl.TRIANGLES, arrowGeometry.indices.length, gl.UNSIGNED_SHORT, 0);
+                }
+            });
+
+            gl.disable(gl.BLEND);
+            gl.uniform1f(uAlpha, 1.0);
 
             // Render gems
             gems.forEach(gem => {
