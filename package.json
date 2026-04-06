@@ -1,0 +1,28 @@
+{
+  "name": "static-content",
+  "version": "1.0.0",
+  "description": "Playwright-backed Express server for navigating, screenshotting, and clicking web pages",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js",
+    "lint": "eslint server/",
+    "lint:fix": "eslint server/ --fix",
+    "format": "prettier --write .",
+    "postinstall": "npx playwright install chromium || echo 'Chromium download skipped - set PLAYWRIGHT_CHROMIUM_PATH if using a pre-installed binary'"
+  },
+  "keywords": ["playwright", "screenshot", "express", "automation"],
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "playwright": "^1.49.0",
+    "uuid": "^11.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "nodemon": "^3.1.0",
+    "prettier": "^3.4.0"
+  }
+}
