@@ -1,3 +1,4 @@
+import math
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -14,21 +15,47 @@ data = {
 df = pd.DataFrame(data)
 corr_matrix = df[['MAS','Harness','Skills','Co-mentions']].corr().round(2)
 
-# Custom RdBu-style colorscale: map correlation value v in [-1, 1] to RGB
-# where the R and B components span [0x22, 0xFF] = [34, 255] in decimal.
-#   v = -1 -> R=255, B=34  (pure red)
-#   v = +1 -> R=34,  B=255 (pure blue)
-# G is held at 0 so only R and B components vary, per the requested spec.
-R_LO, R_HI = 0x22, 0xFF  # 34, 255
-B_LO, B_HI = 0x22, 0xFF  # 34, 255
+# Data-driven two-channel mapping:
+#   * Positive correlations -> Blue channel only.
+#     The observed positive range [pos_min, pos_max] is slerped onto [38, 255].
+#   * Negative correlations -> Red channel only.
+#     The magnitudes of the observed negative range are slerped onto [38, 255].
+# Slerp here treats the two endpoints (38 and 255) as a unit great-circle arc
+# of angle pi/2 and interpolates along it:
+#     slerp(a, b, t) = a*cos(t*pi/2) + b*sin(t*pi/2)
+vals = corr_matrix.values.flatten()
+pos_vals = [v for v in vals if v > 0]
+neg_mags = [abs(v) for v in vals if v < 0]
+pos_min, pos_max = min(pos_vals), max(pos_vals)
+neg_mag_min, neg_mag_max = min(neg_mags), max(neg_mags)
 
-def rdbu_rb(p):
-    """Position p in [0,1] -> 'rgb(r,g,b)' string. p=0 is red, p=1 is blue."""
-    r = round(R_HI - (R_HI - R_LO) * p)
-    b = round(B_LO + (B_HI - B_LO) * p)
-    return f"rgb({r},0,{b})"
+CH_LO, CH_HI = 38, 255  # channel bounds per user spec
 
-custom_rdbu = [[i / 20, rdbu_rb(i / 20)] for i in range(21)]
+def slerp(a, b, t):
+    t = max(0.0, min(1.0, t))
+    omega = math.pi / 2
+    return a * math.cos(t * omega) + b * math.sin(t * omega)
+
+def rgb_for_value(v):
+    """Return (r, g, b) ints for a correlation value in [-1, 1]."""
+    if v > 0:
+        t = 0.0 if pos_max == pos_min else (v - pos_min) / (pos_max - pos_min)
+        return (0, 0, round(slerp(CH_LO, CH_HI, t)))
+    if v < 0:
+        mag = abs(v)
+        t = 0.0 if neg_mag_max == neg_mag_min else (mag - neg_mag_min) / (neg_mag_max - neg_mag_min)
+        return (round(slerp(CH_LO, CH_HI, t)), 0, 0)
+    return (0, 0, 0)
+
+# Dense colorscale covering z in [-1, 1] so Plotly's Heatmap renders the
+# piecewise slerp correctly at any z value.
+N = 400
+custom_scale = []
+for i in range(N + 1):
+    p = i / N                # position in [0, 1] along the colorbar
+    z = 2 * p - 1            # corresponding z-value in [-1, 1]
+    r, g, b = rgb_for_value(z)
+    custom_scale.append([p, f"rgb({r},{g},{b})"])
 
 # Heatmap
 fig = go.Figure(data=go.Heatmap(
@@ -36,7 +63,7 @@ fig = go.Figure(data=go.Heatmap(
     x=corr_matrix.columns,
     y=corr_matrix.columns,
     zmin=-1, zmax=1,
-    colorscale=custom_rdbu,
+    colorscale=custom_scale,
     text=corr_matrix.values,
     texttemplate='%{text}',
     textfont={"size":16},
