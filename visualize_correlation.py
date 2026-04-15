@@ -14,12 +14,29 @@ data = {
 df = pd.DataFrame(data)
 corr_matrix = df[['MAS','Harness','Skills','Co-mentions']].corr().round(2)
 
+# Custom RdBu-style colorscale: map correlation value v in [-1, 1] to RGB
+# where the R and B components span [0x22, 0xFF] = [34, 255] in decimal.
+#   v = -1 -> R=255, B=34  (pure red)
+#   v = +1 -> R=34,  B=255 (pure blue)
+# G is held at 0 so only R and B components vary, per the requested spec.
+R_LO, R_HI = 0x22, 0xFF  # 34, 255
+B_LO, B_HI = 0x22, 0xFF  # 34, 255
+
+def rdbu_rb(p):
+    """Position p in [0,1] -> 'rgb(r,g,b)' string. p=0 is red, p=1 is blue."""
+    r = round(R_HI - (R_HI - R_LO) * p)
+    b = round(B_LO + (B_HI - B_LO) * p)
+    return f"rgb({r},0,{b})"
+
+custom_rdbu = [[i / 20, rdbu_rb(i / 20)] for i in range(21)]
+
 # Heatmap
 fig = go.Figure(data=go.Heatmap(
     z=corr_matrix.values,
     x=corr_matrix.columns,
     y=corr_matrix.columns,
-    colorscale='RdBu',
+    zmin=-1, zmax=1,
+    colorscale=custom_rdbu,
     text=corr_matrix.values,
     texttemplate='%{text}',
     textfont={"size":16},
